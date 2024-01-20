@@ -21,7 +21,7 @@ def get_df_shap_and_error_contribution(regression_streamlit_state, df_features):
         shap_mean.name = f'{x_var}_shap'
         shap_list.append(shap_mean)
     df_shap = pd.concat(shap_list, axis=1)
-    target =  deepcopy(regression_streamlit_state['df_transformed_lag'][regression_streamlit_state['selected_target']])
+    target =  deepcopy(regression_streamlit_state['df_transformed'][regression_streamlit_state['selected_target']])
     df_error_contribution = pd.DataFrame()
     for x_var in regression_streamlit_state['selected_x_variables']:
         df_shap_without_x_var = df_shap.drop(f'{x_var}_shap', axis=1)
@@ -59,7 +59,7 @@ def plotly_ranking(df_ranks, title):
 def regression_analytics(regression_streamlit_state, df_regime_labelled=None):
 
     st.dataframe(generate_stats_table(regression_streamlit_state))
-    df_x_variables_corr = regression_streamlit_state['df_transformed_lag'][regression_streamlit_state['selected_x_variables']].corr()
+    df_x_variables_corr = regression_streamlit_state['df_transformed'][regression_streamlit_state['selected_x_variables']].corr()
     fig = go.Figure()
     fig.add_trace(
             go.Heatmap(
@@ -79,14 +79,14 @@ def regression_analytics(regression_streamlit_state, df_regime_labelled=None):
 
     st.write('#### Time Series of Predictions vs Target')
     df_pred_and_target = deepcopy(regression_streamlit_state['df_coefs_dict']['predictions'])
-    df_pred_and_target = pd.concat([df_pred_and_target, regression_streamlit_state['df_transformed_lag'][st.session_state['selected_target']]], axis=1).ffill().dropna()
+    df_pred_and_target = pd.concat([df_pred_and_target, regression_streamlit_state['df_transformed'][st.session_state['selected_target']]], axis=1).ffill().dropna()
     st.line_chart(df_pred_and_target)
 
     fig = px.scatter()
 
         # Add scatter plots for each column against 'y'
     for col in regression_streamlit_state['df_coefs_dict']['predictions'].columns:  # Exclude the 'y' column
-        fig.add_scatter(x=regression_streamlit_state['df_coefs_dict']['predictions'][col], y=regression_streamlit_state['df_transformed_lag'][regression_streamlit_state['selected_target']], mode='markers', name=f'{col}')
+        fig.add_scatter(x=regression_streamlit_state['df_coefs_dict']['predictions'][col], y=regression_streamlit_state['df_transformed'][regression_streamlit_state['selected_target']], mode='markers', name=f'{col}')
     fig.update_layout(
         title='Scatter Plot of Each Window Prediction against Target',
         xaxis_title='Prediction',
@@ -172,7 +172,7 @@ def regression_analytics(regression_streamlit_state, df_regime_labelled=None):
     st.plotly_chart(fig)
 
 
-    df_shap, df_error_contribution = get_df_shap_and_error_contribution(regression_streamlit_state, df_features=st.session_state['df_transformed_lag'])
+    df_shap, df_error_contribution = get_df_shap_and_error_contribution(regression_streamlit_state, df_features=st.session_state['df_transformed'])
     df_shap['pred'] = df_shap.sum(axis=1)
     # df_shap['pred'] = regression_streamlit_state['df_coefs_dict']['predictions'].mean(axis=1)
     st.write('#### Feature Contribution')

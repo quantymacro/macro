@@ -7,7 +7,8 @@ from sklearn.linear_model import ElasticNet, Ridge
 from scipy.stats import zscore, mstats
 from constrained_linear_regression import ConstrainedLinearRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-
+import matplotlib.pyplot as plt
+import seaborn as sns
 def rolling_regression_sklearn_advanced(data, rolling_window, n_step_ahead=1, 
                                         l1_ratio=0.1, 
                                         dropna=False, remove_outliers=False, 
@@ -75,6 +76,56 @@ def rolling_regression_sklearn_advanced(data, rolling_window, n_step_ahead=1,
     return df_results, fitted_models, X_series, y_series
 
 
+def create_heatmap(df, columns, image_path):
+    corr = df[columns].corr()
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(corr, annot=True)
+    plt.savefig(image_path)
+    plt.close()
+
+def bulk_feature_engineering(df, reg_variables_dict):
+    '''
+    y-variable transformation
+    - lags 1-6 and lag 12
+    - 2m MA lag 1 to lag 3
+    - 3m MA lag 1 to lag 3
+    
+    x-variable transformation
+    contemporaneous
+    -lags 1-4
+    - 2m MA lag 1 to lag 3
+    - 3m MA lag 1 to lag 3
+    
+    The convention is as follow:
+    COLNAME_SEASONAL_TRANSFORMATION_LAG_(FUNC)
+    '''
+    x_lags = [i for i in range(0, 5)]
+    dfc = pd.DataFrame(index=df.index)
+    for col in reg_variables_dict.keys():
+        
+        transformation, seasonal = reg_variables_dict[col].transformation, reg_variables_dict[col].seasonal
+        seasonal_str = 'sa' if seasonal else 'nsa'
+
+        if transformation == 'lvl':
+            series = df[col].copy()
+            
+        elif transformation == 'pct_change':
+            series = df[col].pct_change()
+        
+        elif transformation == 'diff':
+            series = df[col].diff()
+            
+        if seasonal:
+            series = series.copy()
+        
+        for x_lag in x_lags:
+                
+            dfc[f'{col}_{seasonal_str}_{transformation}_l{x_lag}_ma2'] = series.shift(x_lag).rolling(2).mean()
+            dfc[f'{col}_{seasonal_str}_{transformation}_l{x_lag}_ma3'] = series.shift(x_lag).rolling(3).mean()
+    
+    return dfc
+
+
 def feature_engineering(df, transformations):
     '''
     Extends the dataframe with engineered features based on the specified transformations.
@@ -138,7 +189,7 @@ def natural_lag(df):
 
 def generate_stats_table(regression_streamlit_state):
     y_pred = regression_streamlit_state['df_coefs_dict']['predictions'].dropna()
-    y_true = regression_streamlit_state['df_transformed_lag'][regression_streamlit_state['selected_target']].loc[y_pred.index].dropna()
+    y_true = regression_streamlit_state['df_transformed'][regression_streamlit_state['selected_target']].loc[y_pred.index].dropna()
     y_pred = y_pred.loc[y_true.index]
     stats = [('r2', col, r2_score(y_true.loc[y_pred.index].values, y_pred[col])) for col in y_pred.columns]  + \
         [('mse', col, mean_squared_error(y_true.loc[y_pred.index].values, y_pred[col])) for col in y_pred.columns] + \
