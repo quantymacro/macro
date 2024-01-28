@@ -5,18 +5,22 @@ import matplotlib.pyplot as plt
 from copy import deepcopy
 from typing import Callable
 
-def backtester(df_forecast: pd.DataFrame, df_price: pd.DataFrame, contract_size: pd.Series=None, shift_signal: int=2, pos_mul_series: pd.Series=None, df_eligibles:pd.DataFrame=None):
+def backtester(df_forecast: pd.DataFrame, df_price: pd.DataFrame, df_ret: pd.DataFrame = None,
+               contract_size: pd.Series=None, shift_signal: int=2, pos_mul_series: pd.Series=None, df_eligibles:pd.DataFrame=None):
     df_nominal = df_forecast.copy()
     if df_eligibles is not None:
         df_nominal = df_nominal * df_eligibles
+    
+    if df_ret is None:
+        df_ret = df_price.pct_change()
     
     if pos_mul_series is not None:
         df_nominal = df_nominal.mul(pos_mul_series, axis='index')
     df_units = df_nominal/ (df_price * contract_size).dropna(how='all', axis=1)
     df_weights = df_nominal.div(df_nominal.abs().sum(axis=1), axis='index')
     df_nominal = df_nominal.shift(shift_signal)
-    df_pnl_nominal = (df_nominal * df_price.pct_change())
-    df_pnl_capital = (df_nominal.div(df_nominal.abs().sum(axis=1), axis='index') * df_price.pct_change())
+    df_pnl_nominal = (df_nominal * df_ret)
+    df_pnl_capital = (df_nominal.div(df_nominal.abs().sum(axis=1), axis='index') * df_ret)
 
     return df_weights, df_nominal, df_units, df_pnl_nominal, df_pnl_capital
 
@@ -27,19 +31,19 @@ def get_strat_scalar(df_pnl_nominal: pd.DataFrame, nominal_target_vol: float):
     return strat_scalar_series
 
 
-def main_backtester(df_forecast: pd.DataFrame, df_price: pd.DataFrame, contract_size: pd.Series=None,
-                    shift_signal: int=2, nominal_target_vol: float=1_000_000, vol_target: bool =True,
-                    shift_strat_scalar: int=2, df_eligibles: pd.DataFrame=None):
+def main_backtester(df_forecast: pd.DataFrame, df_price: pd.DataFrame, df_ret: pd.DataFrame = None,
+                    contract_size: pd.Series=None, shift_signal: int=2, nominal_target_vol: float=1_000_000,
+                    vol_target: bool =True, shift_strat_scalar: int=2, df_eligibles: pd.DataFrame=None):
     
     if contract_size is None:
         print('No contract_size provided, contract_size is assumed to be 1')
         contract_size = pd.Series([1]*df_forecast.shape[1])
 
-    df_weights, df_nominal, df_units, df_pnl_nominal, df_pnl_capital = backtester(df_forecast=df_forecast, df_price=df_price, contract_size=contract_size, shift_signal=shift_signal, pos_mul_series=None,
+    df_weights, df_nominal, df_units, df_pnl_nominal, df_pnl_capital = backtester(df_forecast=df_forecast, df_price=df_price, df_ret=df_ret, contract_size=contract_size, shift_signal=shift_signal, pos_mul_series=None,
                                                                                   df_eligibles=df_eligibles)
     if vol_target:
         strat_scalar_series = get_strat_scalar(df_pnl_nominal, nominal_target_vol)
-        df_weights, df_nominal, df_units, df_pnl_nominal, df_pnl_capital = backtester(df_forecast=df_forecast, df_price=df_price, contract_size=contract_size, shift_signal=shift_signal, pos_mul_series=strat_scalar_series.shift(shift_strat_scalar),
+        df_weights, df_nominal, df_units, df_pnl_nominal, df_pnl_capital = backtester(df_forecast=df_forecast, df_price=df_price, df_ret=df_ret,  contract_size=contract_size, shift_signal=shift_signal, pos_mul_series=strat_scalar_series.shift(shift_strat_scalar),
                                                                                       df_eligibles=df_eligibles)
     return df_weights, df_nominal, df_units, df_pnl_nominal, df_pnl_capital
 
@@ -99,8 +103,11 @@ def execution_sensitivity_check(df_position, shift_window=1, df_eligibles=None):
     return df_position.shift(shift_window)
 
 def calc_stats(df_pnl_capital):
-    df_pnl_capitalc = df_pnl_capital.dropna(how='all', axis=0).fillna(0)
-    pnl_series = df_pnl_capitalc.mean(axis=1)
+    if isinstance(df_pnl_capital, pd.DataFrame):
+        df_pnl_capitalc = df_pnl_capital.dropna(how='all', axis=0).fillna(0)
+        pnl_series = df_pnl_capitalc.sum(axis=1)
+    if isinstance(df_pnl_capital, pd.Series):
+        pnl_series = df_pnl_capital.copy()
     daily_ret = pnl_series.mean()
     daily_std = pnl_series.std()
     ann_ret = daily_ret * 252

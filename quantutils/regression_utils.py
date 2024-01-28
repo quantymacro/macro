@@ -9,6 +9,11 @@ from constrained_linear_regression import ConstrainedLinearRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.colors import Normalize
+from matplotlib.cm import ScalarMappable
+
+
+
 def rolling_regression_sklearn_advanced(data, rolling_window, n_step_ahead=1, 
                                         l1_ratio=0.1, 
                                         dropna=False, remove_outliers=False, 
@@ -76,12 +81,44 @@ def rolling_regression_sklearn_advanced(data, rolling_window, n_step_ahead=1,
     return df_results, fitted_models, X_series, y_series
 
 
-def create_heatmap(df, columns, image_path):
+def create_heatmap_and_table(df, columns, y_col_name):
     corr = df[columns].corr()
     plt.figure(figsize=(10, 8))
-    sns.heatmap(corr, annot=True)
-    plt.savefig(image_path)
+    sns.heatmap(corr, annot=False)
+    plt.tight_layout()
+    plt.savefig('heatmap.png', bbox_inches='tight')
     plt.close()
+    
+    rounded_data = corr[y_col_name].round(3).sort_values()
+    cmap = sns.color_palette("icefire", as_cmap=True)
+    norm = Normalize(vmin=rounded_data.min(), vmax=rounded_data.max())
+
+    # Adjusting the plot
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Create a table with 'icefire' colormap
+    table = plt.table(cellText=rounded_data.values[:, np.newaxis], 
+                    rowLabels=rounded_data.index, 
+                    colLabels=['Value'], 
+                    cellColours=cmap(norm(rounded_data.values[:, np.newaxis])),
+                    loc='center',
+                    cellLoc='center')
+
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.auto_set_column_width(col=list(range(len(rounded_data)))) 
+
+    # Hide axes
+    ax.axis('off')
+
+    # Adding a colorbar with 'icefire' colormap
+    sm = ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    plt.colorbar(sm, ax=ax, orientation='vertical', fraction=0.05)
+    plt.tight_layout()
+    plt.savefig('corrtable.png', bbox_inches='tight')
+    plt.close()
+    
 
 def bulk_feature_engineering(df, reg_variables_dict):
     '''
@@ -163,18 +200,6 @@ def lag_variables(df, lag_dict):
     return dfc
 
 
-# def natural_lag_monthly(df):
-#     # monthly_cols = [col for col in df.columns if (col.split('_')[1] == 'M') and (len(col.split('_')) > 1)]
-#     monthly_cols = []
-#     for col in df.columns:
-#         if 'Monthly' in col:
-#             monthly_cols.append(col)
-#     monthly_cols_not_lagged = [col for col in monthly_cols if 'lag' not in col]
-#     dfc = df.copy()
-#     for col in monthly_cols_not_lagged:
-#         dfc[f'{col}_natlag1'] = dfc[col].shift(1)
-
-#     return dfc
 
 
 def natural_lag(df):

@@ -16,6 +16,7 @@ import os
 import datetime
 from copy import deepcopy
 from tqdm.notebook import tqdm
+from statsmodels.graphics.tsaplots import plot_pacf
 
 class Variable:
     def __init__(self, transformation=None, seasonal=False, y_variable=False):
@@ -32,7 +33,9 @@ def create_sample_data():
     return pd.DataFrame(data, columns=columns, index=index)
 
 df = create_sample_data()
-
+df = pd.read_excel('../Data/sample_data.xlsx', index_col=0, parse_dates=True)
+df = df.iloc[1:, :]
+st.write(df.head())
 reg_variables_dict = {}
 
 # Streamlit app starts here
@@ -76,22 +79,33 @@ with st.form(key='regression_form'):
 
 if submit_button:
     df_feature = regutils.bulk_feature_engineering(df, reg_variables_dict)
-    image_path = "heatmap.png"
-    
-    regutils.create_heatmap(df, x_col_names, image_path)
-    
     st.session_state['df_transformed'] = df_feature    
-    st.write(df_feature.head())
+
+with st.form('Y-Variable in regression'):
+    st.write('### Confirm Y-Variable')
+    selected_target = st.selectbox('Y-variable', st.session_state['df_transformed'].columns)
+    st.session_state['selected_target'] = selected_target
+    submit_y_variable_button = st.form_submit_button(label='Confirm Y-Variables in Regression')
+    st.write(selected_target)
+    target_series = deepcopy(st.session_state['df_transformed'][selected_target]).dropna()
+    st.write(target_series.head())
+    a = plot_pacf(target_series, lags=20)
+    st.pyplot(a)
+    
+if submit_y_variable_button:
+    x_col_variables = st.session_state['df_transformed'].columns
+    regutils.create_heatmap_and_table(st.session_state['df_transformed'], x_col_variables, st.session_state['selected_target'])
+    st.write(st.session_state['df_transformed'].head())
+    
 
 
 if 'df_transformed' in st.session_state:
     with st.form('Variables in regression'):
-        st.write('### Confirm Y-Variable')
-        selected_target = st.selectbox('Y-variable', st.session_state['df_transformed'].columns)
+        
         st.write('### Confirm X-Variables')
         selected_x_variables = st.multiselect('X-variables', st.session_state['df_transformed'].columns)
         st.session_state['selected_x_variables'] = selected_x_variables
-        st.session_state['selected_target'] = selected_target
+        
         submit_x_variable_button = st.form_submit_button(label='Confirm Variables in Regression')
         
     
@@ -150,7 +164,8 @@ with st.form('Start Date'):
         start_date = st.date_input('Start Date', value=datetime.date(2000, 1, 1), format='YYYY/MM/DD', max_value=datetime.date.today())
         submit_refit_freq = st.form_submit_button(label='Confirm Start Date')
         st.session_state['start_date'] = pd.Timestamp(start_date)
-        st.session_state['df_transformed'] = st.session_state['df_transformed'][start_date:]
+        st.session_state['df_transformed'].index = pd.to_datetime(st.session_state['df_transformed'].index)
+        st.session_state['df_transformed'] = st.session_state['df_transformed'][st.session_state['start_date']:]
         
 if 'df_transformed' in st.session_state and 'selected_x_variables' and 'n_step_ahead' and 'start_date' in st.session_state:
     if st.button('Run Regression'):
@@ -193,8 +208,8 @@ if 'df_transformed' in st.session_state and 'selected_x_variables' and 'n_step_a
 
             regression_streamlit_state = deepcopy(dict(st.session_state))
             stutils.regression_analytics(regression_streamlit_state, df_regime_labelled=None)
-    else:
-        st.write('Cannot run regression')
+else:
+    st.write('Cannot run regression')
         
         
         

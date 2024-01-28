@@ -26,6 +26,8 @@ class Alpha():
         self.post_compute_params = post_compute_params
         self.date_range = pd.date_range(start=self.start,end=self.end, freq="D")
         
+        self.df_ret = self.df_price.pct_change() if 'ret' not in df_dict else df_dict['ret']
+        
     def pre_compute(self, date_range: pd.DatetimeIndex=None):
         '''
         Compute all the things you need for the signal
