@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
-
+from statsmodels.tsa import x13
 
 
 def rolling_regression_sklearn_advanced(data, rolling_window, n_step_ahead=1, 
@@ -70,11 +70,13 @@ def rolling_regression_sklearn_advanced(data, rolling_window, n_step_ahead=1,
         model.fit(X, y, min_coef=min_coef, max_coef=max_coef)
 
         end_idx = start + rolling_window
+        ratio = y.std()/model.predict(X).std()
+        model.coef_ = model.coef_ * ratio
         X_series.iloc[end_idx] = X
         y_series.iloc[end_idx] = y
         coefs.iloc[end_idx] = model.coef_
         future_X = datac.iloc[end_idx:end_idx + n_step_ahead, :-1]
-        future_preds = model.predict(future_X)
+        future_preds = model.predict(future_X) 
         predictions.iloc[end_idx:end_idx + n_step_ahead] = future_preds
         fitted_models.iloc[end_idx] = model
     df_results = pd.concat([coefs.ffill(limit=30), predictions], axis=1).reindex(data.index).ffill(limit=10)
@@ -82,14 +84,15 @@ def rolling_regression_sklearn_advanced(data, rolling_window, n_step_ahead=1,
 
 
 def create_heatmap_and_table(df, columns, y_col_name):
-    corr = df[columns].corr()
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(corr, annot=False)
-    plt.tight_layout()
-    plt.savefig('heatmap.png', bbox_inches='tight')
-    plt.close()
+    effective_columns = [col for col in columns if 'l0' not in col] + [y_col_name]
+    corr = df[effective_columns].corr()
+    # plt.figure(figsize=(10, 8))
+    # sns.heatmap(corr, annot=False)
+    # plt.tight_layout()
+    # plt.savefig('heatmap.png', bbox_inches='tight')
+    # plt.close()
     
-    rounded_data = corr[y_col_name].round(3).sort_values()
+    rounded_data = corr[y_col_name].round(3).sort_values(ascending=False)
     cmap = sns.color_palette("icefire", as_cmap=True)
     norm = Normalize(vmin=rounded_data.min(), vmax=rounded_data.max())
 
@@ -119,8 +122,14 @@ def create_heatmap_and_table(df, columns, y_col_name):
     plt.savefig('corrtable.png', bbox_inches='tight')
     plt.close()
     
+def seasonal_adjustment(series, PATH=None):
+    if PATH is None:
+        PATH = 'C:/Users/Wazir/Documents/wazewww/MLP/ARIMA/winx13ascii_v3-1/WinX13/x13as'
 
-def bulk_feature_engineering(df, reg_variables_dict):
+    res = x13.x13_arima_analysis(series, x12path=PATH)
+    return res
+
+def bulk_feature_engineering(df, reg_variables_dict, y_variable):
     '''
     y-variable transformation
     - lags 1-6 and lag 12
@@ -138,29 +147,44 @@ def bulk_feature_engineering(df, reg_variables_dict):
     '''
     x_lags = [i for i in range(0, 5)]
     dfc = pd.DataFrame(index=df.index)
+    seasonal_adj_dict = {}
     for col in reg_variables_dict.keys():
         
         transformation, seasonal = reg_variables_dict[col].transformation, reg_variables_dict[col].seasonal
         seasonal_str = 'sa' if seasonal else 'nsa'
+        if seasonal:
+            print(f'seasonally adjusting {col}...')
+            series = df[col].dropna().copy()
+            res = seasonal_adjustment(series)
+            series = res.seasadj
+            seasonal_adj_dict[col] = res
 
         if transformation == 'lvl':
-            series = df[col].copy()
+            series = series.copy()
             
         elif transformation == 'pct_change':
-            series = df[col].pct_change()
+            series = series.pct_change()
         
         elif transformation == 'diff':
-            series = df[col].diff()
+            series = series.diff()
             
-        if seasonal:
-            series = series.copy()
+        
         
         for x_lag in x_lags:
                 
             dfc[f'{col}_{seasonal_str}_{transformation}_l{x_lag}_ma2'] = series.shift(x_lag).rolling(2).mean()
             dfc[f'{col}_{seasonal_str}_{transformation}_l{x_lag}_ma3'] = series.shift(x_lag).rolling(3).mean()
-    
-    return dfc
+
+        if col == y_variable:
+            for lag in x_lags[1:]:
+                series = df[col].copy()
+                if transformation == 'pct_change':
+                    dfc[f'{col}_{seasonal_str}_{transformation}{lag}_l0'] = series.pct_change(lag)
+                
+                elif transformation == 'diff':
+                    dfc[f'{col}_{seasonal_str}_{transformation}{lag}_l0'] = series.diff(lag)
+        
+    return dfc, seasonal_adj_dict
 
 
 def feature_engineering(df, transformations):
@@ -211,16 +235,26 @@ def natural_lag(df):
 
     return dfc
 
+def calc_stats(y_pred, y_true):
+    
+    y_truec = y_true.reindex(y_pred.index).dropna()
+    y_predc = y_pred.reindex(y_truec.index)
 
-def generate_stats_table(regression_streamlit_state):
+    stats = [('r2', col, r2_score(y_truec.loc[y_predc.index].values, y_predc[col])) for col in y_pred.columns]  + \
+        [('mse', col, mean_squared_error(y_truec.loc[y_predc.index].values, y_predc[col])) for col in y_pred.columns] + \
+        [('mae', col, mean_absolute_error(y_truec.loc[y_predc.index].values, y_predc[col])) for col in y_pred.columns] + \
+        [('corr', col, np.corrcoef(y_truec.loc[y_predc.index].values, y_predc[col].values)[0][1]) for col in y_pred.columns] + \
+        [('hit_rate', col, (np.sign(y_truec.loc[y_predc.index].values) * np.sign(y_predc[col].values)).mean()) for col in y_pred.columns]
+        
+    return stats
+
+def generate_stats_table(regression_streamlit_state, y_pred=None, y_true=None):
     y_pred = regression_streamlit_state['df_coefs_dict']['predictions'].dropna()
     y_true = regression_streamlit_state['df_transformed'][regression_streamlit_state['selected_target']].loc[y_pred.index].dropna()
     y_pred = y_pred.loc[y_true.index]
-    stats = [('r2', col, r2_score(y_true.loc[y_pred.index].values, y_pred[col])) for col in y_pred.columns]  + \
-        [('mse', col, mean_squared_error(y_true.loc[y_pred.index].values, y_pred[col])) for col in y_pred.columns] + \
-        [('mae', col, mean_absolute_error(y_true.loc[y_pred.index].values, y_pred[col])) for col in y_pred.columns] + \
-        [('corr', col, np.corrcoef(y_true.loc[y_pred.index].values, y_pred[col].values)[0][1]) for col in y_pred.columns]
-        
+    
+    stats = calc_stats(y_pred,y_true)
+    
     df_stats = pd.DataFrame(stats, columns=['metrics', 'model', 'value'])
     return df_stats
 

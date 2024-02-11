@@ -76,18 +76,25 @@ def model_comparison(models_list, target_variable_index_name, prediction_agg_fun
         df_hit_rate_mega.append(hit_rate)
         # sharpes.append(sharpe)
         df_x_variables.append(pd.Series(model['selected_x_variables']))
-    
+    st.write(np.sign(target_variable).value_counts())
     df_preds_mega = pd.concat(df_preds_mega, axis=1)
     df_preds_mega.index = pd.to_datetime(df_preds_mega.index)
     df_preds_mega['ensemble'] = df_preds_mega.mean(axis=1)
+    df_preds_mega['naive'] = target_variable.shift(1)
+    
+    
     df_residuals_mega = pd.concat(df_residuals_mega, axis=1)
     df_residuals_mega['ensemble'] = ((df_preds_mega['ensemble'] - target_variable))
+    df_residuals_mega['naive'] = ((df_preds_mega['naive'] - target_variable))
     
     stats_ensemble = regutils.calc_stats(df_preds_mega[['ensemble']], pd.Series(target_variable))
+    stats_naive = regutils.calc_stats(df_preds_mega[['naive']], pd.Series(target_variable))
     ensemble_dict = {item[0]: item[2] for item in stats_ensemble}
+    naive_dict = {item[0]: item[2] for item in stats_naive}
     df_stats_mega = pd.concat(df_stats_mega, axis=1)
     df_stats_mega.columns = [model['name'] for model in models_list]
     df_stats_mega['ensemble'] = df_stats_mega.index.map(ensemble_dict)
+    df_stats_mega['naive'] = df_stats_mega.index.map(naive_dict)
     
     df_x_variables = pd.concat(df_x_variables, axis=1)
     df_x_variables.columns = [model['name'] for model in models_list]
@@ -95,8 +102,9 @@ def model_comparison(models_list, target_variable_index_name, prediction_agg_fun
     windows = [12, 36]
     df_hit_rate_mega = pd.concat(df_hit_rate_mega, axis=1)
     df_hit_rate_mega['ensemble'] = np.sign(df_preds_mega['ensemble']) * np.sign(target_variable)
+    df_hit_rate_mega['naive'] = np.sign(df_preds_mega['naive']) * np.sign(target_variable)
     df_hit_rate_mega = pd.concat([df_hit_rate_mega.rolling(window).mean() for window in windows], axis=1)
-    columns = list(product(model_names + ['ensemble'], [str(int(window/12))+'y' for window in windows]))
+    columns = list(product(model_names + ['ensemble', 'naive'], [str(int(window/12))+'y' for window in windows]))
     columns = ["_".join(col) for col in columns]
     df_hit_rate_mega.columns =  columns
     
@@ -173,7 +181,10 @@ if 'models_list' in st.session_state:
             y=residual_corr.index.tolist(),
             colorscale='RdBu',
             showscale=True,
-            zmid=0  # Center the color scale at zero
+            zmid=0, # Center the color scale at zero
+            text=residual_corr.values.round(3),  # Add the correlation values as text
+            texttemplate="%{text}",  # Use the text from 'text' as the template
+            textfont={"size":15, "color":"white"},
         ),
         row=1, col=2
     )
@@ -186,7 +197,10 @@ if 'models_list' in st.session_state:
             y=predictions_corr.index.tolist(),
             colorscale='RdBu',
             showscale=True,
-            zmid=0  # Center the color scale at zero
+            zmid=0,  # Center the color scale at zero
+            text=predictions_corr.values.round(3),  # Add the correlation values as text
+            texttemplate="%{text}",  # Use the text from 'text' as the template
+            textfont={"size":15, "color":"white"},
         ),
         row=1, col=1
     )

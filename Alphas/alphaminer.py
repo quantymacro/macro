@@ -133,7 +133,7 @@ class AlphaMiner:
         total_time = end_time - start_time
         print(f"Time taken: {total_time} seconds")
         self.df_pnl_mega = pd.concat([strat.df_pnl_capital.sum(axis=1) for strat in res], axis=1, keys=self.multiindex)
-        self.df_pnl_stats = pd.DataFrame([calc_stats(strat.df_pnl_capital) for strat in res], index=self.multiindex)
+        self.df_pnl_stats = pd.DataFrame([calc_stats(self.df_pnl_mega) for strat in res], index=self.multiindex)
         
     def plot_parameter(self, x_axis='rolling_window', y_axis='sharpe', color_col='attribute'):
         plot_parameter_scatter(self.df_pnl_stats, x_axis, y_axis, color_col)

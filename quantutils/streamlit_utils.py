@@ -58,19 +58,28 @@ def plotly_ranking(df_ranks, title):
 
 def regression_analytics(regression_streamlit_state, df_regime_labelled=None):
 
-    st.dataframe(generate_stats_table(regression_streamlit_state))
+    df_stats = (generate_stats_table(regression_streamlit_state))
+    df_pivot = df_stats.pivot(index='metrics', columns='model', values='value')
+
+    st.dataframe(df_pivot)
     df_x_variables_corr = regression_streamlit_state['df_transformed'][regression_streamlit_state['selected_x_variables']].corr()
     fig = go.Figure()
     fig.add_trace(
-            go.Heatmap(
-                z=df_x_variables_corr.values,
-                x=df_x_variables_corr.columns.tolist()[::-1],
-                y=df_x_variables_corr.index.tolist(),
-                colorscale='RdBu',
-                showscale=True,
-                zmid=0  # Center the color scale at zero
-            ),
-        )
+        go.Heatmap(
+            z=df_x_variables_corr.values,
+            x=df_x_variables_corr.columns.tolist()[::-1],
+            y=df_x_variables_corr.index.tolist(),
+            colorscale='RdBu',
+            showscale=True,
+            zmid=0,  # Center the color scale at zero
+            text=df_x_variables_corr.values.round(3),  # Add the correlation values as text
+            texttemplate="%{text}",  # Use the text from 'text' as the template
+            textfont={"size":30, "color":"white"},  # Set the annotation text size and color
+        ),
+    )
+    # fig.update_layout(
+    # autosize=True,
+    # margin=dict(t=50, l=200),)
     
     st.plotly_chart(fig)
     for x_var in regression_streamlit_state['selected_x_variables']:
@@ -80,8 +89,21 @@ def regression_analytics(regression_streamlit_state, df_regime_labelled=None):
     st.write('#### Time Series of Predictions vs Target')
     df_pred_and_target = deepcopy(regression_streamlit_state['df_coefs_dict']['predictions'])
     df_pred_and_target = pd.concat([df_pred_and_target, regression_streamlit_state['df_transformed'][st.session_state['selected_target']]], axis=1).ffill().dropna()
+    df_pred_and_target.index = pd.to_datetime(df_pred_and_target.index)
     st.line_chart(df_pred_and_target)
 
+    st.write('#### Time Series Rolling 1y & 3y HitRate')
+    df_hit_rate = deepcopy(regression_streamlit_state['df_coefs_dict']['predictions'])
+    target_variable = regression_streamlit_state['df_transformed'][st.session_state['selected_target']]
+    
+    df_hit_rate = np.sign(df_hit_rate)
+    df_hit_rate = df_hit_rate.mul(np.sign(target_variable), axis='index')
+    df_hit_rate.index = pd.to_datetime(df_hit_rate.index)
+    windows = [12, 36]
+    df_hit_rate_rolling = pd.concat([df_hit_rate.rolling(window).mean() for window in windows], axis=1)
+    df_hit_rate_rolling.columns = [f'{col}_{window}' for window in windows for col in df_hit_rate.columns]
+    # df_hit_rate_rolling.columns = ["_".join(col) for col in df_hit_rate_rolling.columns]
+    st.line_chart(df_hit_rate_rolling)
     fig = px.scatter()
 
         # Add scatter plots for each column against 'y'
@@ -126,6 +148,7 @@ def regression_analytics(regression_streamlit_state, df_regime_labelled=None):
 
     ##Relative Ranking of Model
     df_residual = deepcopy((regression_streamlit_state['df_coefs_dict']['residuals']).abs()**2).rolling(30).mean().dropna()
+    df_residual.index = pd.to_datetime(df_residual.index)
     df_ranks = df_residual.rank(axis=1, ascending=True)
 
     st.plotly_chart(plotly_ranking(df_ranks=df_ranks, title='Ranking of Models Over Time'))
@@ -145,6 +168,9 @@ def regression_analytics(regression_streamlit_state, df_regime_labelled=None):
             y=residual_corr.index.tolist(),
             colorscale='RdBu',
             showscale=True,
+            text=residual_corr.values.round(3),  # Add the correlation values as text
+            texttemplate="%{text}",  # Use the text from 'text' as the template
+            textfont={"size":30, "color":"white"}, 
             zmid=0  # Center the color scale at zero
         ),
         row=1, col=2
@@ -158,6 +184,9 @@ def regression_analytics(regression_streamlit_state, df_regime_labelled=None):
             y=predictions_corr.index.tolist(),
             colorscale='RdBu',
             showscale=True,
+            text=predictions_corr.values.round(3),  # Add the correlation values as text
+            texttemplate="%{text}",  # Use the text from 'text' as the template
+            textfont={"size":30, "color":"white"}, 
             zmid=0  # Center the color scale at zero
         ),
         row=1, col=1

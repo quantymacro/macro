@@ -1,5 +1,7 @@
 import sys
 sys.path.append('../') 
+sys.path.append('../../') 
+
 try:
     sys.path.remove('c:\\users\\wazir\\documents\\wazewww\\mlp')
 except:
@@ -113,7 +115,8 @@ if 'df_transformed' in st.session_state:
     with st.form('Variables in regression'):
         
         st.write('### Confirm X-Variables')
-        selected_x_variables = st.multiselect('X-variables', st.session_state['df_transformed'].columns)
+        x_vars = [col for col in st.session_state['df_transformed'].columns if "l0"  not in col]
+        selected_x_variables = st.multiselect('X-variables', x_vars)
         st.session_state['selected_x_variables'] = selected_x_variables
         
         submit_x_variable_button = st.form_submit_button(label='Confirm Variables in Regression')
