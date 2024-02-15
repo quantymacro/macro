@@ -83,44 +83,99 @@ def rolling_regression_sklearn_advanced(data, rolling_window, n_step_ahead=1,
     return df_results, fitted_models, X_series, y_series
 
 
+    
+# def create_heatmap_and_table(df, columns, y_col_name):
+#     effective_columns = [col for col in columns] + [y_col_name]
+#     corr = df[effective_columns].corr()
+
+#     rounded_data = corr[y_col_name].round(3).sort_values(ascending=False)
+#     cmap = sns.color_palette("icefire", as_cmap=True)
+#     norm = Normalize(vmin=rounded_data.min(), vmax=rounded_data.max())
+
+#     # Splitting the data into two halves
+#     half = len(rounded_data) // 2
+#     data_first_half = rounded_data[:half]
+#     data_second_half = rounded_data[half:]
+
+#     # Adjusting the plot
+#     fig, axs = plt.subplots(1, 2, figsize=(20, 6), gridspec_kw={'width_ratios': [len(data_first_half), len(data_second_half)]})
+
+#     # Function to create a table for a subset of data
+#     def create_table(ax, data):
+#         table = ax.table(cellText=data.values[:, np.newaxis], 
+#                          rowLabels=data.index, 
+#                          colLabels=['Value'], 
+#                          cellColours=cmap(norm(data.values[:, np.newaxis])),
+#                          loc='center',
+#                          cellLoc='center')
+#         table.auto_set_font_size(False)
+#         table.set_fontsize(10)
+#         table.auto_set_column_width(col=list(range(len(data)))) 
+#         ax.axis('off')
+
+#     # Creating both tables
+#     create_table(axs[0], data_first_half)
+#     create_table(axs[1], data_second_half)
+
+#     # Adding a colorbar with 'icefire' colormap for the entire figure
+#     sm = ScalarMappable(cmap=cmap, norm=norm)
+#     sm.set_array([])
+#     cbar_ax = fig.add_axes([0.93, 0.15, 0.02, 0.7])  # Adjust the position and size of the colorbar manually
+#     plt.colorbar(sm, cax=cbar_ax, orientation='vertical')
+
+#     plt.tight_layout(rect=[0, 0, 0.9, 1])  # Adjust the rect to prevent overlapping with colorbar
+#     plt.savefig('corrtable.png', bbox_inches='tight')
+#     plt.close()
+
+
 def create_heatmap_and_table(df, columns, y_col_name):
     effective_columns = [col for col in columns if 'l0' not in col] + [y_col_name]
     corr = df[effective_columns].corr()
-    # plt.figure(figsize=(10, 8))
-    # sns.heatmap(corr, annot=False)
-    # plt.tight_layout()
-    # plt.savefig('heatmap.png', bbox_inches='tight')
-    # plt.close()
-    
+
     rounded_data = corr[y_col_name].round(3).sort_values(ascending=False)
     cmap = sns.color_palette("icefire", as_cmap=True)
     norm = Normalize(vmin=rounded_data.min(), vmax=rounded_data.max())
 
-    # Adjusting the plot
-    fig, ax = plt.subplots(figsize=(10, 6))
+    # Determine the number of subplots needed
+    num_variables = len(rounded_data)
+    max_variables_per_subplot = 25
+    num_subplots = np.ceil(num_variables / max_variables_per_subplot).astype(int)
 
-    # Create a table with 'icefire' colormap
-    table = plt.table(cellText=rounded_data.values[:, np.newaxis], 
-                    rowLabels=rounded_data.index, 
-                    colLabels=['Value'], 
-                    cellColours=cmap(norm(rounded_data.values[:, np.newaxis])),
-                    loc='center',
-                    cellLoc='center')
+    # Split the data into chunks
+    data_chunks = [rounded_data[i:i + max_variables_per_subplot] for i in range(0, num_variables, max_variables_per_subplot)]
 
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.auto_set_column_width(col=list(range(len(rounded_data)))) 
+    # Adjusting the plot to accommodate the dynamic number of subplots
+    fig, axs = plt.subplots(1, num_subplots, figsize=(20, 10), squeeze=False)
 
-    # Hide axes
-    ax.axis('off')
+    # Function to create a table for a subset of data
+    def create_table(ax, data):
+        table = ax.table(cellText=data.values[:, np.newaxis], 
+                         rowLabels=data.index, 
+                         colLabels=['Value'], 
+                         cellColours=cmap(norm(data.values[:, np.newaxis])),
+                         loc='center', cellLoc='center')
+        table.auto_set_font_size(False)
+        table.set_fontsize(10)
+        table.auto_set_column_width(col=list(range(len(data)))) 
+        ax.axis('off')
 
-    # Adding a colorbar with 'icefire' colormap
+    # Creating tables for each chunk
+    for ax, data_chunk in zip(axs[0], data_chunks):
+        create_table(ax, data_chunk)
+
+    # Adding a colorbar with 'icefire' colormap for the entire figure
     sm = ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
-    plt.colorbar(sm, ax=ax, orientation='vertical', fraction=0.05)
-    plt.tight_layout()
+    cbar_ax = fig.add_axes([0.93, 0.15, 0.02, 0.7])  # Adjust the position and size of the colorbar dynamically
+    plt.colorbar(sm, cax=cbar_ax, orientation='vertical')
+
+    plt.tight_layout(rect=[0, 0, 0.9, 1])
     plt.savefig('corrtable.png', bbox_inches='tight')
     plt.close()
+
+# Example usage with a DataFrame `df` and relevant columns
+# create_heatmap_and_table(df, columns, y_col_name)
+
     
 def seasonal_adjustment(series, PATH=None):
     if PATH is None:
@@ -241,7 +296,7 @@ def calc_stats(y_pred, y_true):
     y_predc = y_pred.reindex(y_truec.index)
 
     stats = [('r2', col, r2_score(y_truec.loc[y_predc.index].values, y_predc[col])) for col in y_pred.columns]  + \
-        [('mse', col, mean_squared_error(y_truec.loc[y_predc.index].values, y_predc[col])) for col in y_pred.columns] + \
+        [('rmse', col, np.sqrt(mean_squared_error(y_truec.loc[y_predc.index].values, y_predc[col]))) for col in y_pred.columns] + \
         [('mae', col, mean_absolute_error(y_truec.loc[y_predc.index].values, y_predc[col])) for col in y_pred.columns] + \
         [('corr', col, np.corrcoef(y_truec.loc[y_predc.index].values, y_predc[col].values)[0][1]) for col in y_pred.columns] + \
         [('hit_rate', col, (np.sign(y_truec.loc[y_predc.index].values) * np.sign(y_predc[col].values)).mean()) for col in y_pred.columns]

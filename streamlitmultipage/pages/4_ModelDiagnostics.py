@@ -22,28 +22,6 @@ from pathlib import Path
 import os
 import altair as alt
 
-# with st.form(key='Select Target Variable'):
-#     all_targets = os.listdir('../RegressionTools/Models')
-#     selected_target = st.selectbox('Target Variable', all_targets)
-#     target_variable_index_name = selected_target.split('_')[0]
-#     st.session_state['selected_target'] = selected_target
-#     st.session_state['target_variable_index_name'] = target_variable_index_name
-#     submit_button_selected_target = st.form_submit_button(label='Confirm Target Variable')
-
-
-# if submit_button_selected_target:
-#     models_list = []
-#     directory = f'../RegressionTools/Models/{st.session_state["selected_target"]}/'
-#     model_files = os.listdir(directory)
-#     for file_name in model_files:
-#         model = genutils.load_object(file_name, directory)
-#         models_list.append(model)
-
-#     st.session_state['models_list'] = models_list
-    
-#     model_name = st.selectbox('Model Name', model_files)
-#     idx = model_files.index(model_name)        
-#     stutils.regression_analytics(st.session_state['models_list'][idx])
     
 if 'selected_target' not in st.session_state:
     st.session_state['selected_target'] = None

@@ -115,7 +115,7 @@ if 'df_transformed' in st.session_state:
     with st.form('Variables in regression'):
         
         st.write('### Confirm X-Variables')
-        x_vars = [col for col in st.session_state['df_transformed'].columns if "l0"  not in col]
+        x_vars = [col for col in st.session_state['df_transformed'].columns]
         selected_x_variables = st.multiselect('X-variables', x_vars)
         st.session_state['selected_x_variables'] = selected_x_variables
         

@@ -76,7 +76,7 @@ def model_comparison(models_list, target_variable_index_name, prediction_agg_fun
         df_hit_rate_mega.append(hit_rate)
         # sharpes.append(sharpe)
         df_x_variables.append(pd.Series(model['selected_x_variables']))
-    st.write(np.sign(target_variable).value_counts())
+    # st.write(np.sign(target_variable).value_counts())
     df_preds_mega = pd.concat(df_preds_mega, axis=1)
     df_preds_mega.index = pd.to_datetime(df_preds_mega.index)
     df_preds_mega['ensemble'] = df_preds_mega.mean(axis=1)
@@ -148,6 +148,27 @@ if 'models_list' in st.session_state:
     
     st.write('#### Hit Rate 1y and 3y')
     
+    # df_reset = df_hit_rate_mega.dropna().reset_index().rename(columns={'index': 'Date'})
+
+    # # Melt the DataFrame so that it's in long form for Altair
+    # df_melted = df_reset.melt(id_vars=df_reset.columns[0], 
+    #                         value_vars=df_reset.columns[1:], 
+    #                         var_name='Series', value_name='HitRate')
+
+    # # Create the line chart using Altair
+    # chart = alt.Chart(df_melted).mark_line().encode(
+    #     x=alt.X(df_reset.columns[0], type='temporal'),  # Assuming the first column after reset is the date
+    #     y=alt.Y('HitRate:Q'),
+    #     color='Series:N',
+    #     tooltip=[df_reset.columns[0], 'Series', 'HitRate']
+    # ).properties(
+    #     width=900,  # Adjust the width as necessary
+    #     height=300  # Adjust the height as necessary
+    # ).interactive()
+
+    # # Display the chart in Streamlit
+    # st.altair_chart(chart)
+        
     df_reset = df_hit_rate_mega.dropna().reset_index().rename(columns={'index': 'Date'})
 
     # Melt the DataFrame so that it's in long form for Altair
@@ -155,24 +176,29 @@ if 'models_list' in st.session_state:
                             value_vars=df_reset.columns[1:], 
                             var_name='Series', value_name='HitRate')
 
+    # Create a selection that chooses the series to plot based on interaction
+    selection = alt.selection_multi(fields=['Series'], bind='legend')
+
     # Create the line chart using Altair
     chart = alt.Chart(df_melted).mark_line().encode(
         x=alt.X(df_reset.columns[0], type='temporal'),  # Assuming the first column after reset is the date
         y=alt.Y('HitRate:Q'),
         color='Series:N',
-        tooltip=[df_reset.columns[0], 'Series', 'HitRate']
+        tooltip=[df_reset.columns[0], 'Series', 'HitRate'],
+        opacity=alt.condition(selection, alt.value(1), alt.value(0.2))
     ).properties(
         width=900,  # Adjust the width as necessary
         height=300  # Adjust the height as necessary
+    ).add_selection(
+        selection
     ).interactive()
 
     # Display the chart in Streamlit
     st.altair_chart(chart)
         
-    
 
     residual_corr = deepcopy((df_residuals_mega)).corr()
-    predictions_corr = deepcopy((df_preds_mega.iloc[:, :-1])).corr()
+    predictions_corr = deepcopy((df_preds_mega.iloc[:, :])).corr()
     fig = make_subplots(rows=1, cols=2, subplot_titles=('Prediction Correlation', 'Residuals Correlation'), horizontal_spacing=0.2)
     fig.add_trace(
         go.Heatmap(
@@ -217,10 +243,10 @@ if 'models_list' in st.session_state:
     fig = stutils.plotly_ranking(df_ranks, 'Model Ranking Over Time')
     st.plotly_chart(fig)
 
-    df_residual = deepcopy((df_residuals_mega).abs()**2).rolling(30).mean().dropna()
+    df_residual = np.sqrt(deepcopy((df_residuals_mega).abs()**2).rolling(30).mean().dropna())
 
     ##Rolling MSE of models
-    st.write('#### Rolling MSE')
+    st.write('#### Rolling RMSE')
     st.line_chart(df_residual)
 
-    st.line_chart(df_adl.rolling(12).mean())
+    # st.line_chart(df_adl.rolling(12).mean())

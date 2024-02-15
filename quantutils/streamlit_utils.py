@@ -147,13 +147,13 @@ def regression_analytics(regression_streamlit_state, df_regime_labelled=None):
 
 
     ##Relative Ranking of Model
-    df_residual = deepcopy((regression_streamlit_state['df_coefs_dict']['residuals']).abs()**2).rolling(30).mean().dropna()
+    df_residual = np.sqrt(deepcopy((regression_streamlit_state['df_coefs_dict']['residuals']).abs()**2).rolling(30).mean().dropna())
     df_residual.index = pd.to_datetime(df_residual.index)
     df_ranks = df_residual.rank(axis=1, ascending=True)
 
     st.plotly_chart(plotly_ranking(df_ranks=df_ranks, title='Ranking of Models Over Time'))
     ##Rolling MSE of models
-    st.write('#### Rolling MSE')
+    st.write('#### Rolling RMSE')
     st.line_chart(df_residual)
 
 
