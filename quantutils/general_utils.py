@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import pickle
+import re
 def get_df_regime_label(df_regime_discrete, label_dict):
     df_regime_labelled = df_regime_discrete.copy()
     for col, label_sub_dict in label_dict.items():
@@ -10,6 +11,11 @@ def get_df_regime_label(df_regime_discrete, label_dict):
             df_regime_labelled[col] = new_col
     return df_regime_labelled
 
+def extract_numbers(s):
+    parts = s.split('_')
+    last_two = parts[-2:]
+    numbers = [int(num) for part in last_two for num in re.findall(r'\d+', part)]
+    return numbers
 
 
 def save_object(obj, filename, directory):

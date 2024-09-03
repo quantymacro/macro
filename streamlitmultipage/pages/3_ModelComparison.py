@@ -57,44 +57,35 @@ def model_comparison(models_list, target_variable_index_name, prediction_agg_fun
         residuals_agg.name = model['name']
         
         
-        # pnl = pred_agg.shift(shift) * target_index.pct_change()
-        # pnl.name = model['name']
-        # df_pnls_mega.append(pnl.cumsum())
-        # sharpe = (pnl.mean()/pnl.std())
-        # stats_agg.loc[len(stats_agg)] = (sharpe)
-        # stats_agg.index = list(stats_agg.index[:-1]) + ['sharpe']
+
         
         hit_rate = np.sign(pred_agg) * np.sign(target_variable)
-        # df_hit_rate_rolling = pd.concat([hit_rate.rolling(window).mean() for window in windows], axis=1)
-        # df_hit_rate_rolling.columns = [f'{model["name"]}_{int(window/12)}y' for window in windows]
-        
+
         
         stats_agg.name = model['name']
         df_preds_mega.append(pred_agg)
         df_residuals_mega.append(residuals_agg)
         df_stats_mega.append(stats_agg)
         df_hit_rate_mega.append(hit_rate)
-        # sharpes.append(sharpe)
         df_x_variables.append(pd.Series(model['selected_x_variables']))
-    # st.write(np.sign(target_variable).value_counts())
     df_preds_mega = pd.concat(df_preds_mega, axis=1)
     df_preds_mega.index = pd.to_datetime(df_preds_mega.index)
     df_preds_mega['ensemble'] = df_preds_mega.mean(axis=1)
-    df_preds_mega['naive'] = target_variable.shift(1)
+    # df_preds_mega['naive'] = target_variable.shift(1)
     
     
     df_residuals_mega = pd.concat(df_residuals_mega, axis=1)
     df_residuals_mega['ensemble'] = ((df_preds_mega['ensemble'] - target_variable))
-    df_residuals_mega['naive'] = ((df_preds_mega['naive'] - target_variable))
+    # df_residuals_mega['naive'] = ((df_preds_mega['naive'] - target_variable))
     
     stats_ensemble = regutils.calc_stats(df_preds_mega[['ensemble']], pd.Series(target_variable))
-    stats_naive = regutils.calc_stats(df_preds_mega[['naive']], pd.Series(target_variable))
+    # stats_naive = regutils.calc_stats(df_preds_mega[['naive']], pd.Series(target_variable))
     ensemble_dict = {item[0]: item[2] for item in stats_ensemble}
-    naive_dict = {item[0]: item[2] for item in stats_naive}
+    # naive_dict = {item[0]: item[2] for item in stats_naive}
     df_stats_mega = pd.concat(df_stats_mega, axis=1)
     df_stats_mega.columns = [model['name'] for model in models_list]
     df_stats_mega['ensemble'] = df_stats_mega.index.map(ensemble_dict)
-    df_stats_mega['naive'] = df_stats_mega.index.map(naive_dict)
+    # df_stats_mega['naive'] = df_stats_mega.index.map(naive_dict)
     
     df_x_variables = pd.concat(df_x_variables, axis=1)
     df_x_variables.columns = [model['name'] for model in models_list]
@@ -102,9 +93,9 @@ def model_comparison(models_list, target_variable_index_name, prediction_agg_fun
     windows = [12, 36]
     df_hit_rate_mega = pd.concat(df_hit_rate_mega, axis=1)
     df_hit_rate_mega['ensemble'] = np.sign(df_preds_mega['ensemble']) * np.sign(target_variable)
-    df_hit_rate_mega['naive'] = np.sign(df_preds_mega['naive']) * np.sign(target_variable)
+    # df_hit_rate_mega['naive'] = np.sign(df_preds_mega['naive']) * np.sign(target_variable)
     df_hit_rate_mega = pd.concat([df_hit_rate_mega.rolling(window).mean() for window in windows], axis=1)
-    columns = list(product(model_names + ['ensemble', 'naive'], [str(int(window/12))+'y' for window in windows]))
+    columns = list(product(model_names + ['ensemble'], [str(int(window/12))+'y' for window in windows]))
     columns = ["_".join(col) for col in columns]
     df_hit_rate_mega.columns =  columns
     
@@ -119,14 +110,17 @@ def model_comparison(models_list, target_variable_index_name, prediction_agg_fun
 with st.form(key='Select Target Variable'):
     all_targets = os.listdir('../RegressionTools/Models')
     selected_target = st.selectbox('Target Variable', all_targets)
-    target_variable_index_name = selected_target.split('_')[0]
-    st.session_state['selected_target'] = selected_target
+    cleaned_name ="_".join(selected_target.split('_')[:-1])
+    selected_targetc = cleaned_name
+    target_variable_index_name = selected_targetc.split('_')[0]
+    st.session_state['selected_target'] = selected_targetc
+    st.write(cleaned_name)
     st.session_state['target_variable_index_name'] = target_variable_index_name
     submit_button_selected_target = st.form_submit_button(label='Confirm Target Variable')
 
 if submit_button_selected_target:
     models_list = []
-    directory = f'../RegressionTools/Models/{st.session_state["selected_target"]}/'
+    directory = f'../RegressionTools/Models/{selected_target}/'
     model_files = os.listdir(directory)
     for file_name in model_files:
         model = genutils.load_object(file_name, directory)
@@ -203,7 +197,7 @@ if 'models_list' in st.session_state:
     fig.add_trace(
         go.Heatmap(
             z=residual_corr.values,
-            x=residual_corr.columns.tolist()[::-1],
+            x=residual_corr.columns.tolist(),
             y=residual_corr.index.tolist(),
             colorscale='RdBu',
             showscale=True,
@@ -219,7 +213,7 @@ if 'models_list' in st.session_state:
     fig.add_trace(
         go.Heatmap(
             z=predictions_corr.values,
-            x=predictions_corr.columns.tolist()[::-1],
+            x=predictions_corr.columns.tolist(),
             y=predictions_corr.index.tolist(),
             colorscale='RdBu',
             showscale=True,
